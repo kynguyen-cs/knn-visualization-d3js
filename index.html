@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Labeling Nearest Points</title>
+  </head>
+  <style>
+    body {
+      font: 14px sans-serif;
+    }
+
+    .node {
+      fill: rgb(230, 230, 230);
+      fill-opacity: 0;
+      stroke: rgb(230, 230, 230);
+      stroke-width: .5px;
+    }
+
+    .node:hover {
+      fill-opacity: .2;
+    }
+
+    .node.hidden {
+      opacity: 0;
+    }
+
+    .point {
+      fill: rgb(149, 149, 149);
+    }
+
+    .point.uncolored {
+      fill: rgb(149, 149, 149);
+    }
+  </style>
+  <body>
+    <label for="nValue"
+           style="display: inline-block; width: 100px; text-align: right">
+           Nguyễn Hồng Kỳ
+           - 51301979
+           Select K (1 - 4)<span id="nValue-value"></span>
+    </label>
+    <input type="range" min="1" max="4" step="1" value="3" id="nValue">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.8.3/underscore-min.js"></script>
+    <script src="//d3js.org/d3.v3.min.js" charset="utf-8"></script>
+    <script src="k-nearest-neighbors.js"></script>
+    <script>
+      var width = 960,
+          height = 500;
+
+      var knn = 3;
+
+      // when the input range changes update value
+      d3.select("#nValue").on("input", function() {
+        knn = this.value;
+        console.log(knn)
+      });
+
+      var svg = d3.select("body").append("svg")
+        .attr("width", width)
+        .attr("height", height);
+
+      var eventRect = svg.append("rect")
+        .attr("class", "event-rect")
+        .attr("width", width)
+        .attr("height", height)
+        .style("opacity", 0);
+
+      var data = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("")
+        .map(function(letter) {
+          var d = [Math.random() * width, Math.random() * height];
+          d.letter = letter;
+          return d;
+        });
+
+      var quadtree = d3.geom.quadtree()
+        .extent([[-1, -1], [width + 1, height + 1]])(data);
+
+      var circles = svg.selectAll(".point").data(data)
+        .enter().append("circle")
+          .attr("class", "point")
+          .attr("cx", function(d) { return d[0]; })
+          .attr("cy", function(d) { return d[1]; })
+          .attr("r", 5)     // R of circles
+          .classed("uncolored", true);
+
+      var rects = svg.selectAll(".node").data(kNearest.nodes(quadtree))
+        .enter().append("rect")
+          .attr("class", "node")
+          .attr("x", function(d) { return d.x1; })
+          .attr("y", function(d) { return d.y1; })
+          .attr("width", function(d) { return d.x2 - d.x1; })
+          .attr("height", function(d) { return d.y2 - d.y1; })
+          .classed("hidden", true)
+          .on("mousemove", mousemove);
+
+      var labels = svg.selectAll(".label").data(d3.range(4))
+        .enter().append("text")
+          .attr("class", "label")
+          .attr("dy", -10)
+          .style("font-size", "14px")
+          .style("font-weight", "bold")
+          .style("text-anchor", "middle");
+
+      var throttledUpdate = _.throttle(function(mouse) {
+        updateNearest(mouse);
+        updateTooltip(mouse);
+      }, 200);    // time delay
+
+      function mousemove(d) {
+        throttledUpdate(d3.mouse(this));
+      }
+
+      function updateTooltip(mouse) {
+        var selected = circles
+          .filter(function(d) { return d.selected; });
+        labels.data(selected.data())
+          .classed("hidden", false)
+          .attr("x", function(d) { return d[0]; })
+          .attr("y", function(d) { return d[1]; })
+          .text(function(d) { return d.letter; });
+      }
+
+      function drawCircle(x, y, size) {
+        console.log('Drawing circle at', x, y, size);
+        svg.append("circle")
+          .attr('class', 'click-circle')
+          .attr("cx", x)
+          .attr("cy", y)
+          .attr("r", size)
+          .style("stroke", 2)
+          .attr('stroke','black')
+          .style("fill", "none")
+          .transition()
+          .duration(500)
+          .remove();
+          ;
+      }
+
+      function updateNearest(coords) {
+        var x = coords[0],
+            y = coords[1];
+        var k = knn;
+        circles.each(function(d) { d.scanned = d.selected = false; d.mindist = undefined; });
+        rects.each(function(d) { d.visited = false;  d.mindist = undefined; });
+
+        var bestqueue = new Array(quadtree);
+        var resultqueue = [];
+        kNearest.neighbors(bestqueue, resultqueue, x, y, k);
+        console.log(bestqueue);   // list of best points that being searched =
+        console.log(resultqueue); // list of result point
+        console.log(x);           // position of mouse
+        console.log(y);
+        console.log('---------------');
+        console.log(resultqueue[k - 1].mindist);
+        console.log('---------------');
+        console.log(k);
+        drawCircle(x, y, resultqueue[k - 1].mindist);
+        circles.classed("scanned", function(d) { return d.scanned; });
+        circles.classed("selected", function(d) { return d.selected; });
+      }
+    </script>
+  </body>
+</html>
